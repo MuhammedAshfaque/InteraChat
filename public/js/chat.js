@@ -265,6 +265,14 @@ socket.on('receive_message', (msg) => {
   appendMessage(msg);
 });
 
+socket.on('troll_alert', (msg) => {
+  alert(msg);
+});
+
+socket.on('troll_error', (msg) => {
+  alert(msg);
+});
+
 createGroupBtn.addEventListener('click', () => {
   createGroupModal.classList.add('active');
   newGroupNameInput.value = '';

@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const chatRoutes = require('./routes/chat');
 const uploadRoutes = require('./routes/upload');
 const Message = require('./models/Message');
+const User = require('./models/User');
 
 const app = express();
 const server = http.createServer(app);
@@ -32,6 +33,18 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/chat-app')
 // Socket.io logic
 const connectedUsers = new Map(); // Map userId to socket.id
 
+const badWords = ['abuse', 'abusive', 'troll', 'idiot', 'stupid', 'bastard', 'bitch', 'fuck', 'shit', 'asshole', 'dumb', 'loser'];
+const isAbusive = (text) => {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return badWords.some(word => lower.includes(word));
+};
+
+const isOTP = (text) => {
+  if (!text) return false;
+  return /\b\d{4,5}\b/.test(text);
+};
+
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
@@ -48,6 +61,35 @@ io.on('connection', (socket) => {
   // Handle private message
   socket.on('private_message', async ({ senderId, receiverId, messageText, imageUrl }) => {
     try {
+      const user = await User.findById(senderId);
+      if (user.blockedUntil && user.blockedUntil > Date.now()) {
+        const remainingStr = Math.ceil((user.blockedUntil - Date.now()) / 60000) + ' minutes';
+        socket.emit('troll_error', `You are blocked from sending messages for ${remainingStr}.`);
+        return;
+      }
+      if (isOTP(messageText)) {
+        socket.emit('troll_alert', 'Sending 4 or 5 digit OTPs is not allowed.');
+        return;
+      }
+      
+      if (isAbusive(messageText)) {
+        user.trollCount = (user.trollCount || 0) + 1;
+        if (user.trollCount >= 3) {
+          user.blockedUntil = Date.now() + 5 * 60 * 1000; // 5 mins
+          user.trollCount = 0;
+          await user.save();
+          socket.emit('troll_error', 'You have been blocked for 5 minutes due to continuous abusive language.');
+          return;
+        } else {
+          await user.save();
+          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. Continuous attempts will result in a block.`);
+          return;
+        }
+      } else if (user.trollCount > 0) {
+        user.trollCount = 0;
+        await user.save();
+      }
+
       const message = new Message({
         sender: senderId,
         receiver: receiverId,
@@ -73,6 +115,35 @@ io.on('connection', (socket) => {
   // Handle group message
   socket.on('group_message', async ({ senderId, groupId, messageText, imageUrl }) => {
     try {
+      const user = await User.findById(senderId);
+      if (user.blockedUntil && user.blockedUntil > Date.now()) {
+        const remainingStr = Math.ceil((user.blockedUntil - Date.now()) / 60000) + ' minutes';
+        socket.emit('troll_error', `You are blocked from sending messages for ${remainingStr}.`);
+        return;
+      }
+      if (isOTP(messageText)) {
+        socket.emit('troll_alert', 'Sending 4 or 5 digit OTPs is not allowed.');
+        return;
+      }
+      
+      if (isAbusive(messageText)) {
+        user.trollCount = (user.trollCount || 0) + 1;
+        if (user.trollCount >= 3) {
+          user.blockedUntil = Date.now() + 5 * 60 * 1000; // 5 mins
+          user.trollCount = 0;
+          await user.save();
+          socket.emit('troll_error', 'You have been blocked for 5 minutes due to continuous abusive language.');
+          return;
+        } else {
+          await user.save();
+          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. Continuous attempts will result in a block.`);
+          return;
+        }
+      } else if (user.trollCount > 0) {
+        user.trollCount = 0;
+        await user.save();
+      }
+
       const message = new Message({
         sender: senderId,
         groupId,
