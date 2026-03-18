@@ -1,12 +1,10 @@
-import mongoose from "mongoose"
+const mongoose = require('mongoose');
 
-const groupSchema = new mongoose.Schema({
-    name: String,
-    members: [String],
-    createdAt: {
-        type: Date,
-        default: Date.now
-    }
-})
+const GroupSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdAt: { type: Date, default: Date.now }
+});
 
-export default mongoose.model("Group", groupSchema)
+module.exports = mongoose.model('Group', GroupSchema);

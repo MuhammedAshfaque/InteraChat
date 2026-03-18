@@ -1,471 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat-APP</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Application</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
-
 <body>
-    <!-- Login Screen -->
-    <div id="loginScreen" class="login-screen">
-        <div class="login-box">
-            <h2>Welcome to Chat</h2>
-            <input type="text" id="usernameInput" placeholder="Enter your name">
-            <button id="joinChatBtn">Join Chat</button>
+
+  <!-- AUTHENTICATION VIEW -->
+  <div id="auth-view" class="auth-container">
+    <div id="login-section">
+      <h2>Welcome Back</h2>
+      <div id="login-error" class="error-msg hidden"></div>
+      <form id="login-form">
+        <div class="form-group">
+          <label>Email or Username</label>
+          <input type="text" id="login-id" required>
         </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-password" required>
+        </div>
+        <button type="submit" class="btn">Log In</button>
+      </form>
+      <div class="auth-switch">
+        Don't have an account? <a id="show-signup">Sign Up</a>
+      </div>
     </div>
 
-    <!-- Chat App -->
-    <div id="chatApp" style="display:none;">
-        <div class="sidebar">
-            <h3 class="chat">Chat Application</h3>
-
-            <div id="usersList"></div>
-            <button id="openGroupModal" class="create-group-btn">+ Create Group</button>
-            <h4 style="margin-top:15px;">Groups</h4>
-            <div id="groupsList"></div>
+    <div id="signup-section" class="hidden">
+      <h2>Create Account</h2>
+      <div id="signup-error" class="error-msg hidden"></div>
+      <form id="signup-form">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="signup-username" required>
         </div>
-        <!-- Header -->
-        <div class="chat-header">
-            <span id="activeChatName"></span>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="signup-email" required>
         </div>
-        <!-- Messages -->
-        <div id="messages" class="messages"></div>
-        <!-- Input -->
-        <div class="input-area">
-            <input type="text" id="message" placeholder="Type message">
-            <label for="imageInput" class="image-icon">📎</label>
-            <input type="file" id="imageInput">
-            <button id="sendPrivate">Send</button>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="signup-password" required>
         </div>
+        <button type="submit" class="btn">Sign Up</button>
+      </form>
+      <div class="auth-switch">
+        Already have an account? <a id="show-login">Log In</a>
+      </div>
     </div>
-    <div id="groupModal" class="modal">
-        <div class="modal-content">
-            <h3>Create Group</h3>
+  </div>
 
-            <input type="text" id="groupNameInput" placeholder="Group name">
-
-            <div id="membersList" class="members-list"></div>
-
-            <button id="createGroupBtn">Create</button>
-            <button id="closeModalBtn">Cancel</button>
-        </div>
-    </div>
-    <!-- We have to install socket. io in frontend as well -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-
-        const socket = io()
-        const groupModal = document.getElementById("groupModal")
-        const openGroupModal = document.getElementById("openGroupModal")
-        const closeModalBtn = document.getElementById("closeModalBtn")
-        const createGroupBtn = document.getElementById("createGroupBtn")
-        const membersList = document.getElementById("membersList")
-        const loginScreen = document.getElementById("loginScreen")
-        const chatApp = document.getElementById("chatApp")
-        const joinChatBtn = document.getElementById("joinChatBtn")
-        const usernameInput = document.getElementById("usernameInput")
-
-        const messageInput = document.getElementById("message")
-        const sendPrivate = document.getElementById("sendPrivate")
-        const allMessages = document.getElementById("messages")
-
-        let username = ""
-        let selectedUser = null
-        let selectedGroup = null
-        // LOGIN
-        joinChatBtn.addEventListener("click", () => {
-            username = usernameInput.value.trim()
-
-            if (!username) {
-                alert("Please enter your name")
-                return
-            }
-
-            loginScreen.style.display = "none"
-            chatApp.style.display = "block"
-
-            socket.emit("user-joined", username)
-            loadUsers()
-            loadGroups()
-        })
-
-        // LOAD USERS FROM SERVER
-        async function loadUsers() {
-            const res = await fetch("/users")
-            const users = await res.json()
-
-            const usersList = document.getElementById("usersList")
-            usersList.innerHTML = ""
-
-            users.forEach(user => {
-
-                if (user.username === username) return
-
-                const div = document.createElement("div")
-                div.classList.add("user-card")
-                div.innerText = user.username
-
-                div.addEventListener("click", () => {
-                    selectedUser = user
-                    selectedGroup = null
-
-                    document.getElementById("activeChatName").innerText = user.username
-
-                    document.querySelectorAll(".user-card")
-                        .forEach(card => card.classList.remove("active"))
-
-                    div.classList.add("active")
-                    loadChatHistory(user)
-                })
-
-                usersList.appendChild(div)
-            })
-        }
-        async function loadGroups() {
-
-            const res = await fetch("/groups")
-            const groups = await res.json()
-
-            const list = document.getElementById("groupsList")
-            list.innerHTML = ""
-
-            groups.forEach(group => {
-
-                const div = document.createElement("div")
-                div.classList.add("user-card")
-                div.innerText = group.name
-
-                div.addEventListener("click", () => {
-
-                    console.log("Group clicked:", group) // debug
-
-                    selectedGroup = group
-                    selectedUser = null
-
-                    socket.emit("join-group", {
-                        groupId: group._id,
-                        username
-                    })
-
-                    loadGroupHistory(group._id)
-
-                    // UPDATE HEADER
-                    document.getElementById("activeChatName").innerText = group.name
-
-                    // highlight selection
-                    document.querySelectorAll(".user-card")
-                        .forEach(card => card.classList.remove("active"))
-
-                    div.classList.add("active")
-                })
-
-                list.appendChild(div)
-            })
-        }
-        // SEND PRIVATE MESSAGE
-        sendPrivate.addEventListener("click", async () => {
-            const message = messageInput.value.trim()
-            const imageFile = document.getElementById("imageInput").files[0]
-
-       
-            if (containsAbuse(message)) {
-                alert("⚠️ Please avoid abusive language")
-                return
-            }
-            if (!message && !imageFile) return
-            let imageUrl = null
-
-            // Upload image if exists
-            if (imageFile) {
-                const formData = new FormData()
-                formData.append("image", imageFile)
-
-                const res = await fetch("/upload", {
-                    method: "POST",
-                    body: formData
-                })
-
-                const data = await res.json()
-                imageUrl = data.imageUrl
-            }
-
-            // GROUP MESSAGE
-            if (selectedGroup) {
-
-                socket.emit("group-message", {
-                    groupId: selectedGroup._id,
-                    message,
-                    username
-                })
-
-                if (message) addMessage(message, "sent")
-
-            }
-            // PRIVATE MESSAGE
-            else if (selectedUser) {
-
-                socket.emit("private-message", {
-                    to: selectedUser.socketId,
-                    message,
-                    imageUrl,
-                    username
-                })
-
-                if (message) addMessage(message, "sent")
-                if (imageUrl) addImage(imageUrl, "sent")
-            }
-            else {
-                alert("Select a chat first")
-                return
-            }
-
-            messageInput.value = ""
-            document.getElementById("imageInput").value = ""
-        })
-
-
-
-        socket.on("users-updated", (users) => {
-
-            const usersList = document.getElementById("usersList")
-            usersList.innerHTML = ""
-
-            users.forEach(user => {
-
-                if (user.username === username) return
-
-                const div = document.createElement("div")
-                div.classList.add("user-card")
-                div.innerText = user.username
-
-                div.addEventListener("click", () => {
-                    selectedUser = user
-
-                    document.getElementById("activeChatName").innerText = user.username
-
-                    document.querySelectorAll(".user-card")
-                        .forEach(card => card.classList.remove("active"))
-
-                    div.classList.add("active")
-
-                    loadChatHistory(user)
-                })
-
-                usersList.appendChild(div)
-            })
-        })
-        // RECEIVE PRIVATE MESSAGE
-        socket.on("private-message", ({ message, imageUrl, username: sender }) => {
-
-            if (sender === username) return
-
-            // if chat is open
-            if (selectedUser && selectedUser.username === sender) {
-
-                if (message) addMessage(`${sender}: ${message}`, "received")
-                if (imageUrl) addImage(imageUrl, "received")
-
-            } else {
-                console.log("New message from", sender)
-            }
-        })
-        socket.on("group-message", async ({ message, username: sender, groupId }) => {
-            //  ignore own message
-            if (sender === username) return
-
-            if (!selectedGroup) return
-            if (selectedGroup._id !== groupId) return
-
-            addMessage(`${sender}: ${message}`, "received")
-        })
-        // ADD MESSAGE TO UI
-        function addMessage(msg, type = "received") {
-
-            const div = document.createElement("div")
-            div.classList.add("message", type)
-
-            div.innerText = msg
-
-            allMessages.appendChild(div)
-            allMessages.scrollTop = allMessages.scrollHeight
-        }
-
-        async function loadChatHistory(user) {
-
-            const res = await fetch(`/messages/${username}/${user.username}`)
-            const messages = await res.json()
-
-            allMessages.innerHTML = ""
-
-            messages.forEach(msg => {
-
-                if (msg.text) {
-                    if (msg.sender === username)
-                        addMessage(msg.text, "sent")
-                    else
-                        addMessage(msg.text, "received")
-                }
-
-                if (msg.imageUrl) {
-                    if (msg.sender === username)
-                        addImage(msg.imageUrl, "sent")
-                    else
-                        addImage(msg.imageUrl, "received")
-                }
-
-            })
-        }
-        function addImage(url, type = "received") {
-
-            const div = document.createElement("div")
-            div.classList.add("message", type)
-
-            const img = document.createElement("img")
-            img.src = url
-            img.style.maxWidth = "200px"
-            img.style.borderRadius = "8px"
-
-            div.appendChild(img)
-            allMessages.appendChild(div)
-
-            allMessages.scrollTop = allMessages.scrollHeight
-        }
-        openGroupModal.addEventListener("click", async () => {
-
-            groupModal.style.display = "flex"
-
-            // load users to select
-            const res = await fetch("/users")
-            const users = await res.json()
-
-            membersList.innerHTML = ""
-
-            users.forEach(user => {
-
-                if (user.username === username) return
-
-                const label = document.createElement("label")
-
-                label.innerHTML = `
-            <input type="checkbox" value="${user.username}">
-            ${user.username}
-        `
-
-                membersList.appendChild(label)
-            })
-        })
-        closeModalBtn.addEventListener("click", () => {
-            groupModal.style.display = "none"
-        })
-        createGroupBtn.addEventListener("click", async () => {
-
-            const groupName = document.getElementById("groupNameInput").value.trim()
-
-            if (!groupName) {
-                alert("Enter group name")
-                return
-            }
-
-            const selectedMembers = []
-
-            document.querySelectorAll("#membersList input:checked")
-                .forEach(cb => selectedMembers.push(cb.value))
-
-            // include yourself
-            selectedMembers.push(username)
-
-            const res = await fetch("/create-group", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    name: groupName,
-                    members: selectedMembers
-                })
-            })
-
-            await res.json()
-
-            groupModal.style.display = "none"
-
-            document.getElementById("groupNameInput").value = ""
-
-            loadGroups() // refresh list
-        })
-        async function loadGroupHistory(groupId) {
-
-            try {
-
-                const res = await fetch(`/group-messages/${groupId}`)
-                const messages = await res.json()
-
-                allMessages.innerHTML = ""
-
-                messages.forEach(msg => {
-
-                    if (msg.sender === username)
-                        addMessage(msg.text, "sent")
-                    else
-                        addMessage(`${msg.sender}: ${msg.text}`, "received")
-
-                })
-
-            } catch (err) {
-                console.error("Error loading group history:", err)
-            }
-        }
-        socket.on("groups-updated", (groups) => {
-
-            const list = document.getElementById("groupsList")
-            list.innerHTML = ""
-
-            groups.forEach(group => {
-
-                const div = document.createElement("div")
-                div.classList.add("user-card")
-                div.innerText = group.name
-
-                div.addEventListener("click", () => {
-
-                    selectedGroup = group
-                    selectedUser = null
-
-                    socket.emit("join-group", {
-                        groupId: group._id,
-                        username
-                    })
-
-                    loadGroupHistory(group._id)
-
-                    document.getElementById("activeChatName").innerText = group.name
-                })
-
-                list.appendChild(div)
-            })
-        })
-        function containsAbuse(text) {
-
-            if (!text) return false
-
-            const badWords = [
-                "idiot",
-                "stupid",
-                "dumb",
-                "blind",
-                "badword"
-            ]
-
-            const lowerText = text.toLowerCase()
-
-            return badWords.some(word => lowerText.includes(word))
-        }
-    </script>
-
+  <script src="/js/auth.js"></script>
 </body>
-
 </html>

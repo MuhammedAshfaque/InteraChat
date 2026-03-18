@@ -1,242 +1,106 @@
-import express from 'express'
-import dotenv from "dotenv"
-dotenv.config()
-import Group from "./models/Group.js"
-import User from "./models/User.js"
-import Message from "./models/Message.js"
-import path from 'path'
-import multer from "multer"
-import http from 'http'
-import { Server } from 'socket.io'
-import connectDB from "./config/db.js"
+require('dotenv').config();
+const express = require('express');
+const http = require('http');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const { Server } = require('socket.io');
+const path = require('path');
 
-connectDB()
+const authRoutes = require('./routes/auth');
+const chatRoutes = require('./routes/chat');
+const uploadRoutes = require('./routes/upload');
+const Message = require('./models/Message');
 
-const app = express()
-app.use(express.json())
-const server = http.createServer(app)
-const io = new Server(server)
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
 
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-const storage = multer.diskStorage({
-    destination: "uploads/",
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + "-" + file.originalname)
-    }
-})
-function containsAbuse(text) {
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/chat', uploadRoutes);
 
-    if (!text) return false
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/chat-app')
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-    const badWords = [
-        "idiot",
-        "stupid",
-        "dumb",
-        "badword"
-    ]
+// Socket.io logic
+const connectedUsers = new Map(); // Map userId to socket.id
 
-    const lowerText = text.toLowerCase()
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
 
-    return badWords.some(word => lowerText.includes(word))
-}
-const upload = multer({ storage })
-// Handle socket connections
-io.on("connection", (socket) => {
+  // User joins with their ID
+  socket.on('join', (userId) => {
+    connectedUsers.set(userId, socket.id);
+  });
 
-    console.log("User connected:", socket.id)
+  // Join a specific group room
+  socket.on('join_group', (groupId) => {
+    socket.join(groupId);
+  });
 
-    // USER JOINED
-    socket.on("user-joined", async (username) => {
-        try {
-            let user = await User.findOne({ username })
-
-            if (!user) {
-                user = await User.create({
-                    username,
-                    socketId: socket.id
-                })
-            } else {
-                user.socketId = socket.id
-                await user.save()
-            }
-
-            // Send updated users list to all clients
-            const users = await User.find({})
-            io.emit("users-updated", users)
-
-            console.log("User saved:", user.username)
-
-        } catch (err) {
-            console.error(err)
-        }
-    })
-
-    // PRIVATE MESSAGE
-    socket.on("private-message", async ({ to, message, imageUrl, username }) => {
-
-        try {
-            if (containsAbuse(message)) {
-                console.log("Blocked abusive message")
-                return
-            }
-
-            const receiverUser = await User.findOne({ socketId: to })
-            if (!receiverUser) return
-
-            const savedMessage = await Message.create({
-                sender: username,
-                receiver: receiverUser.username,
-                text: message,
-                imageUrl
-            })
-
-            io.to(to).emit("private-message", {
-                message,
-                imageUrl,
-                username
-            })
-
-        } catch (err) {
-            console.error(err)
-        }
-    })
-    socket.on("join-group", async ({ groupId, username }) => {
-
-        try {
-
-            const group = await Group.findById(groupId)
-
-            if (!group) return
-
-            // ⭐ allow only members
-            if (!group.members.includes(username)) {
-                console.log("User not allowed in group")
-                return
-            }
-
-            socket.join(groupId)
-
-            console.log(`${username} joined group ${group.name}`)
-
-        } catch (err) {
-            console.error(err)
-        }
-    })
-    socket.on("group-message", async ({ groupId, message, username }) => {
-
-        try {
-            if (containsAbuse(message)) {
-                console.log("Blocked abusive group message")
-                return
-            }
-            const group = await Group.findById(groupId)
-            if (!group) return
-
-            // ⭐ verify sender is member
-            if (!group.members.includes(username)) {
-                console.log("Unauthorized group message")
-                return
-            }
-
-            await Message.create({
-                sender: username,
-                text: message,
-                groupId
-            })
-
-            io.to(groupId).emit("group-message", {
-                message,
-                username,
-                groupId
-            })
-
-        } catch (err) {
-            console.error(err)
-        }
-    })
-    // DISCONNECT
-    socket.on("disconnect", async () => {
-        try {
-            await User.findOneAndUpdate(
-                { socketId: socket.id },
-                { socketId: null }
-            )
-
-            const users = await User.find({})
-            io.emit("users-updated", users)
-
-            console.log("User disconnected:", socket.id)
-        } catch (err) {
-            console.error(err)
-        }
-    })
-
-})
-
-// Serve static files
-app.use(express.static(path.resolve('./public')))
-app.use("/uploads", express.static("uploads"))
-app.post("/upload", upload.single("image"), (req, res) => {
-    res.json({
-        imageUrl: `/uploads/${req.file.filename}`
-    })
-})
-// GET USERS
-app.get("/users", async (req, res) => {
-    const users = await User.find({})
-    res.json(users)
-})
-app.get("/messages/:user1/:user2", async (req, res) => {
-    const { user1, user2 } = req.params
-
+  // Handle private message
+  socket.on('private_message', async ({ senderId, receiverId, messageText, imageUrl }) => {
     try {
-        const messages = await Message.find({
-            $or: [
-                { sender: user1, receiver: user2 },
-                { sender: user2, receiver: user1 }
-            ]
-        }).sort({ createdAt: 1 })
+      const message = new Message({
+        sender: senderId,
+        receiver: receiverId,
+        messageText,
+        imageUrl
+      });
+      await message.save();
+      const populatedMessage = await message.populate('sender', 'username');
 
-        res.json(messages)
-
+      // Send to receiver if online
+      const receiverSocketId = connectedUsers.get(receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit('receive_message', populatedMessage);
+      }
+      
+      // Send back to sender
+      socket.emit('receive_message', populatedMessage);
     } catch (err) {
-        console.error(err)
-        res.status(500).json({ error: "Failed to fetch messages" })
+      console.error('Error sending private message:', err);
     }
-})
-app.post("/create-group", async (req, res) => {
+  });
 
-    const { name, members } = req.body
+  // Handle group message
+  socket.on('group_message', async ({ senderId, groupId, messageText, imageUrl }) => {
+    try {
+      const message = new Message({
+        sender: senderId,
+        groupId,
+        messageText,
+        imageUrl
+      });
+      await message.save();
+      const populatedMessage = await message.populate('sender', 'username');
 
-    const group = await Group.create({
-        name,
-        members
-    })
+      // Emitting to everyone in the room
+      io.to(groupId).emit('receive_message', populatedMessage);
+    } catch (err) {
+      console.error('Error sending group message:', err);
+    }
+  });
 
-    // ⭐ notify all clients
-    const groups = await Group.find({})
-    io.emit("groups-updated", groups)
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+    for (const [userId, sockId] of connectedUsers.entries()) {
+      if (sockId === socket.id) {
+        connectedUsers.delete(userId);
+        break;
+      }
+    }
+  });
+});
 
-    res.json(group)
-})
-app.get("/groups", async (req, res) => {
-    const groups = await Group.find({})
-    res.json(groups)
-})
-app.get("/group-messages/:groupId", async (req, res) => {
-
-    const messages = await Message.find({
-        groupId: req.params.groupId
-    }).sort({ createdAt: 1 })
-
-    res.json(messages)
-})
-
-// Send index file
-app.get('/', (req, res) => {
-    res.sendFile(path.resolve('./public/index.html'))
-})
-
-server.listen(3000, () => {
-    console.log(`Server running on http://localhost:3000`)
-})
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
