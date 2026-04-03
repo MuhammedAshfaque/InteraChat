@@ -6,6 +6,7 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   trollCount: { type: Number, default: 0 },
   blockedUntil: { type: Date, default: null },
+  trollStartTime: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

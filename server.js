@@ -73,21 +73,32 @@ io.on('connection', (socket) => {
       }
       
       if (isAbusive(messageText)) {
-        user.trollCount = (user.trollCount || 0) + 1;
-        if (user.trollCount >= 3) {
-          user.blockedUntil = Date.now() + 5 * 60 * 1000; // 5 mins
+        const timeWindow = 5 * 60 * 1000; // 5 minute window
+        const now = Date.now();
+        
+        if (user.trollCount > 0 && user.trollStartTime && (now - user.trollStartTime > timeWindow)) {
+          // Time passed, start a new window
           user.trollCount = 0;
+          user.trollStartTime = now;
+        } else if (!user.trollStartTime || user.trollCount === 0) {
+          // First offense, set the start time
+          user.trollStartTime = now;
+        }
+
+        user.trollCount = (user.trollCount || 0) + 1;
+
+        if (user.trollCount >= 3) {
+          user.blockedUntil = now + 5 * 60 * 1000; // 5 mins block
+          user.trollCount = 0;
+          user.trollStartTime = null;
           await user.save();
-          socket.emit('troll_error', 'You have been blocked for 5 minutes due to continuous abusive language.');
+          socket.emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
           return;
         } else {
           await user.save();
-          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. Continuous attempts will result in a block.`);
+          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. 3 attempts within 5 minutes will result in a block.`);
           return;
         }
-      } else if (user.trollCount > 0) {
-        user.trollCount = 0;
-        await user.save();
       }
 
       const message = new Message({
@@ -127,21 +138,32 @@ io.on('connection', (socket) => {
       }
       
       if (isAbusive(messageText)) {
-        user.trollCount = (user.trollCount || 0) + 1;
-        if (user.trollCount >= 3) {
-          user.blockedUntil = Date.now() + 5 * 60 * 1000; // 5 mins
+        const timeWindow = 5 * 60 * 1000; // 5 minute window
+        const now = Date.now();
+        
+        if (user.trollCount > 0 && user.trollStartTime && (now - user.trollStartTime > timeWindow)) {
+          // Time passed, start a new window
           user.trollCount = 0;
+          user.trollStartTime = now;
+        } else if (!user.trollStartTime || user.trollCount === 0) {
+          // First offense, set the start time
+          user.trollStartTime = now;
+        }
+
+        user.trollCount = (user.trollCount || 0) + 1;
+
+        if (user.trollCount >= 3) {
+          user.blockedUntil = now + 5 * 60 * 1000; // 5 mins block
+          user.trollCount = 0;
+          user.trollStartTime = null;
           await user.save();
-          socket.emit('troll_error', 'You have been blocked for 5 minutes due to continuous abusive language.');
+          socket.emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
           return;
         } else {
           await user.save();
-          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. Continuous attempts will result in a block.`);
+          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. 3 attempts within 5 minutes will result in a block.`);
           return;
         }
-      } else if (user.trollCount > 0) {
-        user.trollCount = 0;
-        await user.save();
       }
 
       const message = new Message({
