@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { LogOut, Plus, Image as ImageIcon, Send } from 'lucide-react';
+import { LogOut, Plus, Image as ImageIcon, Send, ChevronLeft } from 'lucide-react';
 
 export default function ChatDashboard({ session, logout }) {
   const [socket, setSocket] = useState(null);
@@ -79,7 +79,10 @@ export default function ChatDashboard({ session, logout }) {
   }, [socket]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current && messagesEndRef.current.parentElement) {
+      const container = messagesEndRef.current.parentElement;
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages]);
 
   const openChat = async (type, id, name) => {
@@ -223,10 +226,10 @@ export default function ChatDashboard({ session, logout }) {
   };
 
   return (
-    <div className="chat-app">
+    <div className={`chat-app ${activeChat ? 'chat-active' : ''}`}>
       <div className="sidebar">
         <div className="sidebar-header">
-          <h3>{session.user.username}'s Dashboard</h3>
+          <h3>{session.user.username}</h3>
           <div className="sidebar-actions">
             <button className="btn-icon" title="New Group" onClick={() => setIsModalOpen(true)}>
               <Plus />
@@ -237,25 +240,25 @@ export default function ChatDashboard({ session, logout }) {
           </div>
         </div>
         
-        <div className="section-title">Groups</div>
-        <ul className="group-list">
-          {groups.map(g => (
-            <li key={g._id} className={`list-item ${activeChat?.id === g._id ? 'active' : ''}`} onClick={() => openChat('group', g._id, g.name)}>
-              <div className="avatar group-avatar">G</div>
-              <div className="item-name">{g.name}</div>
-            </li>
-          ))}
-        </ul>
+        <div className="sidebar-content">
+          <ul className="user-list">
+            {users.map(u => (
+              <li key={u._id} className={`list-item ${activeChat?.id === u._id ? 'active' : ''}`} onClick={() => openChat('user', u._id, u.username)}>
+                <div className="avatar">{u.username.charAt(0).toUpperCase()}</div>
+                <div className="item-name">{u.username}</div>
+              </li>
+            ))}
+          </ul>
 
-        <div className="section-title">Direct Messages</div>
-        <ul className="user-list">
-          {users.map(u => (
-            <li key={u._id} className={`list-item ${activeChat?.id === u._id ? 'active' : ''}`} onClick={() => openChat('user', u._id, u.username)}>
-              <div className="avatar">{u.username.charAt(0).toUpperCase()}</div>
-              <div className="item-name">{u.username}</div>
-            </li>
-          ))}
-        </ul>
+          <ul className="group-list">
+            {groups.map(g => (
+              <li key={g._id} className={`list-item ${activeChat?.id === g._id ? 'active' : ''}`} onClick={() => openChat('group', g._id, g.name)}>
+                <div className="avatar group-avatar">G</div>
+                <div className="item-name">{g.name}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div className="chat-area">
@@ -265,8 +268,11 @@ export default function ChatDashboard({ session, logout }) {
             <p>Choose a user or group to start messaging</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0, overflow: 'hidden' }}>
             <div className="chat-header">
+              <button className="back-btn" onClick={() => setActiveChat(null)}>
+                <ChevronLeft />
+              </button>
               <div className="avatar">{activeChat.type === 'group' ? 'G' : activeChat.name.charAt(0).toUpperCase()}</div>
               <div className="item-name">{activeChat.name}</div>
             </div>
@@ -281,8 +287,10 @@ export default function ChatDashboard({ session, logout }) {
                   <div key={msg._id || i} className={`message ${isMe ? 'sent' : 'received'}`}>
                     {!isMe && activeChat.type === 'group' && <div className="message-sender">{senderName}</div>}
                     {msg.imageUrl && <img src={msg.imageUrl} className="message-image" alt="Shared photo" />}
-                    {msg.messageText && <div className="message-text">{msg.messageText}</div>}
-                    <span className="message-time">{timeStr}</span>
+                    <div className="message-body">
+                      {msg.messageText && <div className="message-text">{msg.messageText}</div>}
+                      <span className="message-time">{timeStr}</span>
+                    </div>
                   </div>
                 )
               })}

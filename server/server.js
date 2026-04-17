@@ -15,7 +15,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'missing_key');
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const modelNames = [
+  "gemini-2.5-flash",
+  "gemini-2.5-pro"
+];
 
 const __filename = fileURLToPath(import.meta.url); // Get the current file path
 const __dirname = path.dirname(__filename);
@@ -40,17 +43,42 @@ const badWords = ['idiot', 'stupid', 'bastard','bitch', 'shit', 'gadha', 'goru']
 
 const isAbusive = async (text) => {
   if (!text) return false;
-  try {
-    const prompt = `Analyze the following text and determine if it contains abusive language, hate speech, severe insults, or inappropriate buzzwords. Respond with only 'true' if it is abusive, or 'false' if it is clean.\nText: "${text}"`;
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text().trim().toLowerCase();
-    return responseText.includes('true');
-  } catch (error) {
-    console.error('Gemini API error during buzzword check:', error);
-    // Fallback to local dictionary if API fails
-    const lower = text.toLowerCase();
-    return badWords.some(word => lower.includes(word));
+
+  const prompt = `Analyze the following text and determine if it contains abusive language, hate speech, severe insults, or inappropriate buzzwords. Respond with only 'true' or 'false'.\nText: "${text}"`;
+
+  for (let name of modelNames) {
+    try {
+      const tempModel = genAI.getGenerativeModel({ model: name });
+
+      // retry logic
+      for (let i = 0; i < 3; i++) {
+        try {
+          const result = await tempModel.generateContent(prompt);
+          const responseText = result.response.text().trim().toLowerCase();
+          return responseText.includes('true');
+        } catch (err) {
+          if (err.status === 503) {
+            console.log(`Retry ${i + 1} for ${name}`);
+            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+          } else {
+            throw err;
+          }
+        }
+      }
+
+    } catch (err) {
+      if (err.status !== 503) {
+        console.error("Non-503 error:", err);
+        break;
+      }
+      console.log(`${name} failed, trying next model...`);
+    }
   }
+
+  // FINAL fallback (your existing logic)
+  console.log("Fallback to local badWords");
+  const lower = text.toLowerCase();
+  return badWords.some(word => lower.includes(word));
 };
 
 const isOTP = (text) => {
@@ -85,36 +113,6 @@ io.on('connection', (socket) => {
         return;
       }
       
-      if (await isAbusive(messageText)) {
-        const timeWindow = 5 * 60 * 1000; // 5 minute window
-        const now = Date.now();
-        
-        // This part is for resetting the troll count if the time window has passed
-        if (user.trollCount > 0 && user.trollStartTime && (now - user.trollStartTime > timeWindow)) {
-          // Time passed, start a new window
-          user.trollCount = 0;
-          user.trollStartTime = now;
-        } else if (!user.trollStartTime || user.trollCount === 0) {
-          // First offense, set the start time
-          user.trollStartTime = now;
-        }
-
-        user.trollCount = (user.trollCount || 0) + 1;
-
-        if (user.trollCount >= 3) {
-          user.blockedUntil = now + 5 * 60 * 1000; // 5 mins block
-          user.trollCount = 0;
-          user.trollStartTime = null;
-          await user.save();
-          socket.emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
-          return;
-        } else {
-          await user.save();
-          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. 3 attempts within 5 minutes will result in a block.`);
-          return;
-        }
-      }
-
       const message = new Message({
         sender: senderId,
         receiver: receiverId,
@@ -132,6 +130,36 @@ io.on('connection', (socket) => {
       
       // Send back to sender
       socket.emit('receive_message', populatedMessage);
+
+      // Evaluate Abuse Asynchronously
+      if (messageText) {
+        isAbusive(messageText).then(async (abusive) => {
+          if (abusive) {
+            const timeWindow = 5 * 60 * 1000; // 5 minute window
+            const now = Date.now();
+            const freshUser = await User.findById(senderId);
+            
+            if (freshUser.trollCount > 0 && freshUser.trollStartTime && (now - freshUser.trollStartTime > timeWindow)) {
+              freshUser.trollCount = 0;
+              freshUser.trollStartTime = now;
+            } else if (!freshUser.trollStartTime || freshUser.trollCount === 0) {
+              freshUser.trollStartTime = now;
+            }
+
+            freshUser.trollCount = (freshUser.trollCount || 0) + 1;
+
+            if (freshUser.trollCount >= 3) {
+              freshUser.blockedUntil = now + 5 * 60 * 1000;
+              freshUser.trollCount = 0;
+              freshUser.trollStartTime = null;
+              await freshUser.save();
+              socket.emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
+            } else {
+              await freshUser.save();
+            }
+          }
+        }).catch(err => console.error('Error in async abuse check for private message:', err));
+      }
     } catch (err) {
       console.error('Error sending private message:', err);
     }
@@ -151,35 +179,6 @@ io.on('connection', (socket) => {
         return;
       }
       
-      if (await isAbusive(messageText)) {
-        const timeWindow = 5 * 60 * 1000; // 5 minute window
-        const now = Date.now();
-        
-        if (user.trollCount > 0 && user.trollStartTime && (now - user.trollStartTime > timeWindow)) {
-          // Time passed, start a new window
-          user.trollCount = 0;
-          user.trollStartTime = now;
-        } else if (!user.trollStartTime || user.trollCount === 0) {
-          // First offense, set the start time
-          user.trollStartTime = now;
-        }
-
-        user.trollCount = (user.trollCount || 0) + 1;
-
-        if (user.trollCount >= 3) {
-          user.blockedUntil = now + 5 * 60 * 1000; // 5 mins block
-          user.trollCount = 0;
-          user.trollStartTime = null;
-          await user.save();
-          socket.emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
-          return;
-        } else {
-          await user.save();
-          socket.emit('troll_alert', `Warning ${user.trollCount}/3: Abusive language is not allowed. 3 attempts within 5 minutes will result in a block.`);
-          return;
-        }
-      }
-
       const message = new Message({
         sender: senderId,
         groupId,
@@ -191,6 +190,36 @@ io.on('connection', (socket) => {
 
       // Emitting to everyone in the room
       io.to(groupId).emit('receive_message', populatedMessage);
+      
+      // Evaluate Abuse Asynchronously
+      if (messageText) {
+        isAbusive(messageText).then(async (abusive) => {
+          if (abusive) {
+            const timeWindow = 5 * 60 * 1000; // 5 minute window
+            const now = Date.now();
+            const freshUser = await User.findById(senderId);
+            
+            if (freshUser.trollCount > 0 && freshUser.trollStartTime && (now - freshUser.trollStartTime > timeWindow)) {
+              freshUser.trollCount = 0;
+              freshUser.trollStartTime = now;
+            } else if (!freshUser.trollStartTime || freshUser.trollCount === 0) {
+              freshUser.trollStartTime = now;
+            }
+
+            freshUser.trollCount = (freshUser.trollCount || 0) + 1;
+
+            if (freshUser.trollCount >= 3) {
+              freshUser.blockedUntil = now + 5 * 60 * 1000;
+              freshUser.trollCount = 0;
+              freshUser.trollStartTime = null;
+              await freshUser.save();
+              io.to(socket.id).emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
+            } else {
+              await freshUser.save();
+            }
+          }
+        }).catch(err => console.error('Error in async abuse check for group message:', err));
+      }
     } catch (err) {
       console.error('Error sending group message:', err);
     }
