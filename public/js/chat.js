@@ -75,14 +75,16 @@ async function loadSidebar() {
 function renderUsers(users) {
   userListEl.innerHTML = '';
   users.forEach(user => {
+    const currentUsername = user.username;
+    
     const li = document.createElement('li');
     li.className = 'list-item';
     li.dataset.id = user._id;
     li.innerHTML = `
-      <div class="avatar">${user.username.charAt(0).toUpperCase()}</div>
-      <div class="item-name">${user.username}</div>
+      <div class="avatar">${currentUsername.charAt(0).toUpperCase()}</div>
+      <div class="item-name">${currentUsername}</div>
     `;
-    li.addEventListener('click', () => openChat('user', user._id, user.username));
+    li.addEventListener('click', () => openChat('user', user._id, currentUsername));
     userListEl.appendChild(li);
   });
 }

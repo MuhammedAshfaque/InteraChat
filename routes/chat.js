@@ -1,8 +1,8 @@
-const express = require('express');
-const User = require('../models/User');
-const Group = require('../models/Group');
-const Message = require('../models/Message');
-const authMiddleware = require('../middleware/auth');
+import express from 'express';
+import User from '../models/User.js';
+import Group from '../models/Group.js';
+import Message from '../models/Message.js';
+import authMiddleware from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -71,4 +71,4 @@ router.get('/group-messages/:groupId', authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,8 +1,12 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const authMiddleware = require('../middleware/auth');
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import authMiddleware from '../middleware/auth.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -38,7 +42,7 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
   }
-});
+}); 
 
 router.post('/upload-image', authMiddleware, upload.single('image'), (req, res) => {
   try {
@@ -59,4 +63,4 @@ router.post('/upload-image', authMiddleware, upload.single('image'), (req, res) 
   }
 });
 
-module.exports = router;
+export default router;

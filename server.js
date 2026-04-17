@@ -1,22 +1,25 @@
-require('dotenv').config();
-const express = require('express');
-const http = require('http');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const { Server } = require('socket.io');
-const path = require('path');
+import dotenv from 'dotenv';
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const authRoutes = require('./routes/auth');
-const chatRoutes = require('./routes/chat');
-const uploadRoutes = require('./routes/upload');
-const Message = require('./models/Message');
-const User = require('./models/User');
+import authRoutes from './routes/auth.js';
+import chatRoutes from './routes/chat.js';
+import uploadRoutes from './routes/upload.js';
+import Message from './models/Message.js';
+import User from './models/User.js';
+import connectDb from './config/connectDB.js';
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url); // Get the current file path
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server);
 
-app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -25,15 +28,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/chat', uploadRoutes);
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/chat-app')
-  .then(() => console.log('MongoDB connected successfully'))
-  .catch(err => console.error('MongoDB connection error:', err));
+connectDb();
 
-// Socket.io logic
 const connectedUsers = new Map(); // Map userId to socket.id
 
-const badWords = ['abuse', 'abusive', 'troll', 'idiot', 'stupid', 'bastard', 'bitch', 'fuck', 'shit', 'asshole', 'dumb', 'loser'];
+const badWords = ['abuse', 'abusive', 'troll', 'idiot', 'stupid', 'bastard','bitch', 'shit', 'asshole', 'dumb', 'loser', 'blind', 'gadha', 'goru'];
+
 const isAbusive = (text) => {
   if (!text) return false;
   const lower = text.toLowerCase();
@@ -76,6 +76,7 @@ io.on('connection', (socket) => {
         const timeWindow = 5 * 60 * 1000; // 5 minute window
         const now = Date.now();
         
+        // This part is for resetting the troll count if the time window has passed
         if (user.trollCount > 0 && user.trollStartTime && (now - user.trollStartTime > timeWindow)) {
           // Time passed, start a new window
           user.trollCount = 0;
