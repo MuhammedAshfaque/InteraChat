@@ -11,14 +11,18 @@ import uploadRoutes from './routes/upload.js';
 import Message from './models/Message.js';
 import User from './models/User.js';
 import connectDb from './config/connectDB.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 dotenv.config();
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'missing_key');
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 const __filename = fileURLToPath(import.meta.url); // Get the current file path
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server); 
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -32,12 +36,21 @@ connectDb();
 
 const connectedUsers = new Map(); // Map userId to socket.id
 
-const badWords = ['abuse', 'abusive', 'troll', 'idiot', 'stupid', 'bastard','bitch', 'shit', 'asshole', 'dumb', 'loser', 'blind', 'gadha', 'goru'];
+const badWords = ['idiot', 'stupid', 'bastard','bitch', 'shit', 'gadha', 'goru'];
 
-const isAbusive = (text) => {
+const isAbusive = async (text) => {
   if (!text) return false;
-  const lower = text.toLowerCase();
-  return badWords.some(word => lower.includes(word));
+  try {
+    const prompt = `Analyze the following text and determine if it contains abusive language, hate speech, severe insults, or inappropriate buzzwords. Respond with only 'true' if it is abusive, or 'false' if it is clean.\nText: "${text}"`;
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text().trim().toLowerCase();
+    return responseText.includes('true');
+  } catch (error) {
+    console.error('Gemini API error during buzzword check:', error);
+    // Fallback to local dictionary if API fails
+    const lower = text.toLowerCase();
+    return badWords.some(word => lower.includes(word));
+  }
 };
 
 const isOTP = (text) => {
@@ -72,7 +85,7 @@ io.on('connection', (socket) => {
         return;
       }
       
-      if (isAbusive(messageText)) {
+      if (await isAbusive(messageText)) {
         const timeWindow = 5 * 60 * 1000; // 5 minute window
         const now = Date.now();
         
@@ -138,7 +151,7 @@ io.on('connection', (socket) => {
         return;
       }
       
-      if (isAbusive(messageText)) {
+      if (await isAbusive(messageText)) {
         const timeWindow = 5 * 60 * 1000; // 5 minute window
         const now = Date.now();
         
