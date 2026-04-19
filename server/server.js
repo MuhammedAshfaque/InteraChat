@@ -56,7 +56,8 @@ const isAbusive = async (text) => {
           const result = await tempModel.generateContent(prompt);
           const responseText = result.response.text().trim().toLowerCase();
           return responseText.includes('true');
-        } catch (err) {
+        } 
+        catch (err) {
           if (err.status === 503) {
             console.log(`Retry ${i + 1} for ${name}`);
             await new Promise(r => setTimeout(r, 1000 * (i + 1)));
