@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: 'dist',
-    emptyOutDir: true,
+    outDir: '../public',
+    emptyOutDir: false,
     rollupOptions: {
       output: {
         entryFileNames: '[name]-[hash].js',
@@ -18,13 +18,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://chatify-connect-backend.onrender.com',
+        target: 'http://localhost:3000',
         changeOrigin: true
       },
       '/socket.io': {
-        target: 'https://chatify-connect-backend.onrender.com',
-        changeOrigin: true,
-        secure: false,
+        target: 'http://localhost:3000',
         ws: true
       }
     }
