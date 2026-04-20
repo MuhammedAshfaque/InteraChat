@@ -1,4 +1,4 @@
-# Real-Time Multi-Client Chat Application
+# InteraChat
 
 A full-stack, real-time chat application similar to WhatsApp Web. This project supports secure user authentication, 1-on-1 private messaging, group chats, and multimedia (photo) sharing.
 
