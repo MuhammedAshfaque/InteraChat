@@ -76,6 +76,3 @@ Before setting up the project, ensure you have the following installed on your m
 * Read receipts and online/offline status indicators.
 * End-to-end message encryption.
 * Push notifications.
-
-## License
-[ISC](https://choosealicense.com/licenses/isc/)
