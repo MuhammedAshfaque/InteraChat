@@ -50,41 +50,38 @@ export default function AuthView({ login }) {
   };
 
   const handleSignup = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: signupUser, email: signupEmail, password: signupPass })
-      });
-      
-      let data = null;
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const text = await res.text();
-        if (text && text.trim()) {
-          try {
-            data = JSON.parse(text);
-          } catch (err) {
-            console.error('Failed to parse JSON response:', err);
-          }
-        }
-      }
+  e.preventDefault();
+  setError("");
 
-      if (!res.ok) {
-        throw new Error(data?.message || `Server error (Status ${res.status})`);
-      }
-      
-      if (!data || !data.token) {
-        throw new Error('Server returned an empty or invalid response.');
-      }
-      
-      login(data.token, data.user);
-    } catch (err) {
-      setError(err.message);
+  try {
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username: signupUser,
+        email: signupEmail,
+        password: signupPass,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || `Server error (${res.status})`);
     }
-  };
+
+    if (!data.token) {
+      throw new Error("Token not received from server.");
+    }
+
+    login(data.token, data.user);
+  } catch (err) {
+    console.error(err);
+    setError(err.message || "Something went wrong.");
+  }
+};
 
   return (
     <div className="auth-container">
