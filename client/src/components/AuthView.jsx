@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const API = import.meta.env.VITE_BACKEND_URL || '';
+
 export default function AuthView({ login }) {
   const [isLogin, setIsLogin] = useState(true);
   const [error, setError] = useState('');
@@ -16,7 +18,7 @@ export default function AuthView({ login }) {
     e.preventDefault();
     setError('');
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId, password: loginPass })
@@ -54,7 +56,7 @@ export default function AuthView({ login }) {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

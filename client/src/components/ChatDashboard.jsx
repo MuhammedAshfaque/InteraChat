@@ -2,7 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { LogOut, Plus, Image as ImageIcon, Send, ChevronLeft } from 'lucide-react';
 
+const API = import.meta.env.VITE_BACKEND_URL || '';
+
 export default function ChatDashboard({ session, logout }) {
+  
   const [socket, setSocket] = useState(null);
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -23,7 +26,7 @@ export default function ChatDashboard({ session, logout }) {
   };
 
   useEffect(() => {
-    const newSocket = io({
+    const newSocket = io(API, {
       auth: { token: session.token }
     });
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -41,8 +44,8 @@ export default function ChatDashboard({ session, logout }) {
     const loadSidebar = async () => {
       try {
         const [usersRes, groupsRes] = await Promise.all([
-          fetch('/api/chat/users', { headers: authHeaders }),
-          fetch('/api/chat/groups', { headers: authHeaders })
+          fetch(`${API}/api/chat/users`, { headers: authHeaders }),
+          fetch(`${API}/api/chat/groups`, { headers: authHeaders })
         ]);
         const fetchedUsers = await usersRes.json();
         const fetchedGroups = await groupsRes.json();
@@ -99,7 +102,7 @@ export default function ChatDashboard({ session, logout }) {
 
   const openChat = async (type, id, name) => {
     setActiveChat({ type, id, name });
-    const endpoint = type === 'user' ? `/api/chat/messages/${id}` : `/api/chat/group-messages/${id}`;
+    const endpoint = type === 'user' ? `${API}/api/chat/messages/${id}` : `${API}/api/chat/group-messages/${id}`;
     try {
       const res = await fetch(endpoint, { headers: authHeaders });
       const msgs = await res.json();
@@ -120,7 +123,7 @@ export default function ChatDashboard({ session, logout }) {
       const formData = new FormData();
       formData.append('image', selectedImage);
       try {
-        const res = await fetch('/api/chat/upload-image', {
+        const res = await fetch(`${API}/api/chat/upload-image`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${session.token}` },
           body: formData
@@ -299,7 +302,7 @@ function CreateGroupModal({ isOpen, onClose, users, authHeaders, setGroups }) {
     if (selectedMembers.size === 0) return alert('Select at least one member');
 
     try {
-      const res = await fetch('/api/chat/groups', {
+      const res = await fetch(`${API}/api/chat/groups`, {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ name, members: Array.from(selectedMembers) })
@@ -307,7 +310,7 @@ function CreateGroupModal({ isOpen, onClose, users, authHeaders, setGroups }) {
       if (res.ok) {
         onClose();
         // reload groups list
-        fetch('/api/chat/groups', { headers: authHeaders })
+        fetch(`${API}/api/chat/groups`, { headers: authHeaders })
           .then(r => r.json())
           .then(setGroups);
       }

@@ -18,15 +18,16 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'https://interachat-backend.onrender.com',
         changeOrigin: true
       },
       '/socket.io': {
-        target: 'http://localhost:3000',
+        target: 'https://interachat-backend.onrender.com',
+        changeOrigin: true,
         ws: true
       },
       '/uploads': {
-        target: 'http://localhost:3000',
+        target: 'https://interachat-backend.onrender.com',
         changeOrigin: true
       }
     }
