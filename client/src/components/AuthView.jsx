@@ -21,8 +21,17 @@ export default function AuthView({ login }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId, password: loginPass })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
+      
+      let data = null;
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.message || `Server error (Status ${res.status})`);
+      }
+      
       login(data.token, data.user);
     } catch (err) {
       setError(err.message);
@@ -38,8 +47,17 @@ export default function AuthView({ login }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: signupUser, email: signupEmail, password: signupPass })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Signup failed');
+      
+      let data = null;
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.message || `Server error (Status ${res.status})`);
+      }
+      
       login(data.token, data.user);
     } catch (err) {
       setError(err.message);
