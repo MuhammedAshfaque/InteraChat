@@ -26,6 +26,7 @@ export default function ChatDashboard({ session, logout }) {
     const newSocket = io({
       auth: { token: session.token }
     });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
@@ -45,13 +46,24 @@ export default function ChatDashboard({ session, logout }) {
         ]);
         const fetchedUsers = await usersRes.json();
         const fetchedGroups = await groupsRes.json();
-        setUsers(fetchedUsers);
-        setGroups(fetchedGroups);
+        
+        if (usersRes.ok && Array.isArray(fetchedUsers)) {
+          setUsers(fetchedUsers);
+        } else {
+          console.error('Failed to load users:', fetchedUsers);
+        }
+
+        if (groupsRes.ok && Array.isArray(fetchedGroups)) {
+          setGroups(fetchedGroups);
+        } else {
+          console.error('Failed to load groups:', fetchedGroups);
+        }
       } catch (err) {
         console.error('Error loading sidebar data', err);
       }
     };
     loadSidebar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -163,67 +175,7 @@ export default function ChatDashboard({ session, logout }) {
     });
   };
 
-  // Group Create Modal Component (inline for simplicity but can be separated)
-  const CreateGroupModal = () => {
-    const [name, setName] = useState('');
-    const [selectedMembers, setSelectedMembers] = useState(new Set());
-
-    const toggleMember = (id) => {
-      const newSel = new Set(selectedMembers);
-      if (newSel.has(id)) newSel.delete(id);
-      else newSel.add(id);
-      setSelectedMembers(newSel);
-    };
-
-    const confirmCreate = async () => {
-      if (!name) return alert('Group name required');
-      if (selectedMembers.size === 0) return alert('Select at least one member');
-
-      try {
-        const res = await fetch('/api/chat/groups', {
-          method: 'POST',
-          headers: authHeaders,
-          body: JSON.stringify({ name, members: Array.from(selectedMembers) })
-        });
-        if (res.ok) {
-          setIsModalOpen(false);
-          // reload groups list
-          fetch('/api/chat/groups', { headers: authHeaders })
-            .then(r => r.json())
-            .then(setGroups);
-        }
-      } catch (err) {
-        console.error('Failed to create group', err);
-      }
-    }
-
-    return (
-      <div className={`modal ${isModalOpen ? 'active' : ''}`}>
-        <div className="modal-content">
-          <h3>Create New Group</h3>
-          <div className="form-group">
-            <label>Group Name</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Study Group" required />
-          </div>
-          <div className="form-group">
-            <label>Select Members</label>
-            <div className="select-members">
-              {users.map(u => (
-                <label key={u._id} className="member-option">
-                  <input type="checkbox" checked={selectedMembers.has(u._id)} onChange={() => toggleMember(u._id)} />
-                  <span>{u.username}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="modal-actions">
-            <button className="btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={confirmCreate}>Create</button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Group Create Modal Component (moved outside of this component to prevent recreate-on-render issues)
 
   return (
     <div className={`chat-app ${activeChat ? 'chat-active' : ''}`}>
@@ -242,16 +194,18 @@ export default function ChatDashboard({ session, logout }) {
         
         <div className="sidebar-content">
           <ul className="user-list">
-            {users.map(u => (
+            {Array.isArray(users) && users.map(u => (
               <li key={u._id} className={`list-item ${activeChat?.id === u._id ? 'active' : ''}`} onClick={() => openChat('user', u._id, u.username)}>
-                <div className="avatar">{u.username.charAt(0).toUpperCase()}</div>
-                <div className="item-name">{u.username}</div>
+                <div className="avatar">
+                  <img src="/profile.png" alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                </div>
+                <div className="item-name">{formatUsername(u.username)}</div>
               </li>
             ))}
           </ul>
 
           <ul className="group-list">
-            {groups.map(g => (
+            {Array.isArray(groups) && groups.map(g => (
               <li key={g._id} className={`list-item ${activeChat?.id === g._id ? 'active' : ''}`} onClick={() => openChat('group', g._id, g.name)}>
                 <div className="avatar group-avatar">G</div>
                 <div className="item-name">{g.name}</div>
@@ -273,8 +227,12 @@ export default function ChatDashboard({ session, logout }) {
               <button className="back-btn" onClick={() => setActiveChat(null)}>
                 <ChevronLeft />
               </button>
-              <div className="avatar">{activeChat.type === 'group' ? 'G' : activeChat.name.charAt(0).toUpperCase()}</div>
-              <div className="item-name">{activeChat.name}</div>
+              <div className="avatar">
+                {activeChat.type === 'group' ? 'G' : (
+                  <img src="/profile.png" alt={activeChat.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                )}
+              </div>
+              <div className="item-name">{activeChat.type === 'group' ? activeChat.name : formatUsername(activeChat.name)}</div>
             </div>
             
             <div className="messages">
@@ -313,7 +271,81 @@ export default function ChatDashboard({ session, logout }) {
         )}
       </div>
 
-      <CreateGroupModal />
+      <CreateGroupModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        users={users}
+        authHeaders={authHeaders}
+        setGroups={setGroups}
+      />
     </div>
   );
 }
+
+// Group Create Modal Component (declared statically outside render)
+function CreateGroupModal({ isOpen, onClose, users, authHeaders, setGroups }) {
+  const [name, setName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState(new Set());
+
+  const toggleMember = (id) => {
+    const newSel = new Set(selectedMembers);
+    if (newSel.has(id)) newSel.delete(id);
+    else newSel.add(id);
+    setSelectedMembers(newSel);
+  };
+
+  const confirmCreate = async () => {
+    if (!name) return alert('Group name required');
+    if (selectedMembers.size === 0) return alert('Select at least one member');
+
+    try {
+      const res = await fetch('/api/chat/groups', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ name, members: Array.from(selectedMembers) })
+      });
+      if (res.ok) {
+        onClose();
+        // reload groups list
+        fetch('/api/chat/groups', { headers: authHeaders })
+          .then(r => r.json())
+          .then(setGroups);
+      }
+    } catch (err) {
+      console.error('Failed to create group', err);
+    }
+  };
+
+  return (
+    <div className={`modal ${isOpen ? 'active' : ''}`}>
+      <div className="modal-content">
+        <h3>Create New Group</h3>
+        <div className="form-group">
+          <label>Group Name</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Study Group" required />
+        </div>
+        <div className="form-group">
+          <label>Select Members</label>
+          <div className="select-members">
+            {Array.isArray(users) && users.map(u => (
+              <label key={u._id} className="member-option">
+                <input type="checkbox" checked={selectedMembers.has(u._id)} onChange={() => toggleMember(u._id)} />
+                <span>{formatUsername(u.username)}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={confirmCreate}>Create</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helper to format usernames to Sentence case
+const formatUsername = (name) => {
+  if (!name) return '';
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+};

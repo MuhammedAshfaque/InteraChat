@@ -1,0 +1,13 @@
+{
+  "name": "chat-app-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install-client": "cd client && npm install",
+    "install-server": "cd server && npm install",
+    "build-client": "cd client && npm run build",
+    "install-all": "npm run install-client && npm run install-server",
+    "build": "npm run install-all && npm run build-client",
+    "start": "cd server && node server.js"
+  }
+}

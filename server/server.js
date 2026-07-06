@@ -16,8 +16,9 @@ dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'missing_key');
 const modelNames = [
-  "gemini-2.5-flash",
-  "gemini-2.5-pro"
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro"
 ];
 
 const __filename = fileURLToPath(import.meta.url); // Get the current file path
@@ -143,7 +144,8 @@ io.on('connection', (socket) => {
             if (freshUser.trollCount > 0 && freshUser.trollStartTime && (now - freshUser.trollStartTime > timeWindow)) {
               freshUser.trollCount = 0;
               freshUser.trollStartTime = now;
-            } else if (!freshUser.trollStartTime || freshUser.trollCount === 0) {
+            } 
+            else if (!freshUser.trollStartTime || freshUser.trollCount === 0) {
               freshUser.trollStartTime = now;
             }
 
@@ -157,6 +159,7 @@ io.on('connection', (socket) => {
               socket.emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
             } else {
               await freshUser.save();
+              socket.emit('troll_alert', `Warning: Abusive language detected! (Offense ${freshUser.trollCount}/3). You will be blocked for 5 minutes if you reach 3.`);
             }
           }
         }).catch(err => console.error('Error in async abuse check for private message:', err));
@@ -217,6 +220,7 @@ io.on('connection', (socket) => {
               io.to(socket.id).emit('troll_error', 'You have been blocked for 5 minutes: you sent abusive language 3 times within 5 minutes.');
             } else {
               await freshUser.save();
+              io.to(socket.id).emit('troll_alert', `Warning: Abusive language detected! (Offense ${freshUser.trollCount}/3). You will be blocked for 5 minutes if you reach 3.`);
             }
           }
         }).catch(err => console.error('Error in async abuse check for group message:', err));
