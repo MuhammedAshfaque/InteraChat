@@ -846,8 +846,17 @@ body::after {
     font-size: 14px;
   }
 
+  .messages {
+    padding: 16px;
+  }
+
   .message {
     max-width: 85%;
+  }
+
+  .message-image {
+    max-width: 100%;
+    max-height: 220px;
   }
 
   .chat-input {
@@ -857,11 +866,39 @@ body::after {
 
   .chat-input input[type="text"] {
     padding: 10px 14px;
-    font-size: 14px;
+    font-size: 16px; /* Prevent iOS browser focus zoom */
   }
 
   .send-btn {
     width: 38px;
     height: 38px;
+  }
+
+  .auth-container {
+    padding: 24px;
+    margin: 16px;
+    border-radius: 16px;
+  }
+
+  .auth-container h2 {
+    font-size: 26px;
+    margin-bottom: 16px;
+  }
+
+  .modal-content {
+    padding: 24px;
+    margin: 16px;
+    border-radius: 16px;
+    max-width: 90%;
+  }
+
+  .modal-content h3 {
+    font-size: 22px;
+    margin-bottom: 16px;
+  }
+
+  .select-members {
+    max-height: 200px;
+    margin-bottom: 16px;
   }
 }
