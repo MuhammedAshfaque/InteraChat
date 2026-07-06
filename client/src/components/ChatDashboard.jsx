@@ -247,7 +247,7 @@ export default function ChatDashboard({ session, logout }) {
                 return (
                   <div key={msg._id || i} className={`message ${isMe ? 'sent' : 'received'}`}>
                     {!isMe && activeChat.type === 'group' && <div className="message-sender">{senderName}</div>}
-                    {msg.imageUrl && <img src={msg.imageUrl} className="message-image" alt="Shared photo" />}
+                    {msg.imageUrl && <img src={getImageUrl(msg.imageUrl)} className="message-image" alt="Shared photo" />}
                     <div className="message-body">
                       {msg.messageText && <div className="message-text">{msg.messageText}</div>}
                       <span className="message-time">{timeStr}</span>
@@ -351,4 +351,13 @@ function CreateGroupModal({ isOpen, onClose, users, authHeaders, setGroups }) {
 const formatUsername = (name) => {
   if (!name) return '';
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+};
+
+// Helper to construct absolute URL for uploaded images
+const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  const baseUrl = API.endsWith('/') ? API.slice(0, -1) : API;
+  const relativeUrl = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl}${relativeUrl}`;
 };
