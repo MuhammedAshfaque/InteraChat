@@ -25,11 +25,22 @@ export default function AuthView({ login }) {
       let data = null;
       const contentType = res.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
+        const text = await res.text();
+        if (text && text.trim()) {
+          try {
+            data = JSON.parse(text);
+          } catch (err) {
+            console.error('Failed to parse JSON response:', err);
+          }
+        }
       }
 
       if (!res.ok) {
         throw new Error(data?.message || `Server error (Status ${res.status})`);
+      }
+      
+      if (!data || !data.token) {
+        throw new Error('Server returned an empty or invalid response.');
       }
       
       login(data.token, data.user);
@@ -51,11 +62,22 @@ export default function AuthView({ login }) {
       let data = null;
       const contentType = res.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
+        const text = await res.text();
+        if (text && text.trim()) {
+          try {
+            data = JSON.parse(text);
+          } catch (err) {
+            console.error('Failed to parse JSON response:', err);
+          }
+        }
       }
 
       if (!res.ok) {
         throw new Error(data?.message || `Server error (Status ${res.status})`);
+      }
+      
+      if (!data || !data.token) {
+        throw new Error('Server returned an empty or invalid response.');
       }
       
       login(data.token, data.user);
